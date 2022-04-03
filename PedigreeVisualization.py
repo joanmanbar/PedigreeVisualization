@@ -316,8 +316,7 @@ def PedigreeVis(DD, Log = False):
     fig, ax = plt.subplots(figsize =(10, 7))
     wedges, texts, autotexts = ax.pie(sizes,
                                       autopct = lambda pct: func(pct, sizes),
-                                      textprops = dict(color ="white"),
-                                      normalize=False)
+                                      textprops = dict(color ="white"))
 
     # Adding legend
     ax.legend(wedges, labels,
