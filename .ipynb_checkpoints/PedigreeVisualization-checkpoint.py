@@ -74,9 +74,9 @@ def MergeDD(D1,D2):
     Merged_D = {k: D1.get(k, 0) + D2.get(k, 0) for k in set(D1) | set(D2)}
     return(Merged_D)
 
-D1 = {'B': 0.39, 'A': 0.39}
-D2 = {'B': 0.21, 'C': 0.39, 'F': 0.10}
-MergeDD(D1,D2)
+# D1 = {'B': 0.39, 'A': 0.39}
+# D2 = {'B': 0.21, 'C': 0.39, 'F': 0.10}
+# MergeDD(D1,D2)
 
 
 
@@ -91,18 +91,23 @@ def SimpleCross(s, R):
     ThisD = dict()
     # List of primary crosses
     List_PC = s.split("/")
-    LastMale = List_PC[1]
-    LastFemale = List_PC[0]
-    # Contributions
-    Ratio_M = len(LastMale)/3
-    Ratio_F = len(LastFemale)/3
-    Total = Ratio_M + Ratio_F
+    List_PC = sorted(List_PC, key=len)
+    # Recurrent is a longer string
+    NonRecurrent = List_PC[0]
+    Recurrent = List_PC[1]
+    # Number of backcrosses
+    n = len(Recurrent)/3
+    
+    # Recurrent's contribution
+    Rec_Cont =  ((2**n)-1) / (2**n)
+    NonRec_Cont = 1 - Rec_Cont
+
     # Rename keys
-    LastMale = LastMale[:3]
-    LastFemale = LastFemale[:3]
+    NonRecurrent = NonRecurrent[:3]
+    Recurrent = Recurrent[:3]
     # Add values
-    ThisD[LastMale] = R * Ratio_M/Total
-    ThisD[LastFemale] = R * Ratio_F/Total
+    ThisD[Recurrent] = R * Rec_Cont
+    ThisD[NonRecurrent] = R * NonRec_Cont
     
 #     print(ThisD[LastFemale] + ThisD[LastMale])
     
@@ -115,12 +120,15 @@ def SimpleCross(s, R):
 
 def Simp_Doub(s,R):
     if s.count('/') == 0:
-        Ratio_s = len(s)/3
+        # Number of backcrosses
+        n = len(s)/3
+        # Contribution
+        Cont_s = ( (2**n)-1 ) / (2**n)       
         s = s[:3]
         D1 = dict()
-        D1[s] = R - (R/2)**Ratio_s
+        D1[s] = R * Cont_s
     elif s.count('/') == 1:
-        D1 = SimpleCross(s,R/2)
+        D1 = SimpleCross(s,R)
     else: 
         print('Error!')
         
@@ -272,7 +280,7 @@ def AnCon(pedigree, R=1, SimplifyPed=True):
         else:
             break  
     # If there is no other parent, add D1 again
-    if len(s)==0:
+    if len(s)==0 and R!=0:
         D_values = MergeDD(D1,D_values)
     
     print('Sum of contributions = ', sum(D_values.values()))
@@ -286,6 +294,9 @@ def AnCon(pedigree, R=1, SimplifyPed=True):
             D_parents[key] = D_values[value]
         print(pedigree)
         return(D_parents)
+
+# pedigree = 'A/*3B'    
+# AnCon(pedigree, R=1, SimplifyPed=True)
 
 
 
