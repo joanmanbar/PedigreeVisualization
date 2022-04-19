@@ -18,6 +18,12 @@ import pandas as pd
 import numpy as np
 import re
 import matplotlib.pyplot as plt
+from collections import Counter
+import seaborn as sns
+
+# import session_info
+# session_info.show()
+
 
 
 # # Make sure Jupyter Notebook shows all outputs from the same cell
@@ -108,31 +114,12 @@ def SimpleCross(s, R):
     # Add values
     ThisD[Recurrent] = R * Rec_Cont
     ThisD[NonRecurrent] = R * NonRec_Cont
-    
-#     print(ThisD[LastFemale] + ThisD[LastMale])
-    
+        
     return(ThisD)
 
-
-
-
-# ### Single or No Cross (`Simp_Doub`)
-
-def Simp_Doub(s,R):
-    if s.count('/') == 0:
-        # Number of backcrosses
-        n = len(s)/3
-        # Contribution
-        Cont_s = ( (2**n)-1 ) / (2**n)       
-        s = s[:3]
-        D1 = dict()
-        D1[s] = R * Cont_s
-    elif s.count('/') == 1:
-        D1 = SimpleCross(s,R)
-    else: 
-        print('Error!')
-        
-    return(D1)
+# # Examples
+# s = 'P01/P02P02P02'
+# SimpleCross(s, R=.5)
 
 
 
@@ -141,17 +128,44 @@ def Simp_Doub(s,R):
 # This is used when a pedigree has more than one cross. In other words, it's not 'A', or 'A/B'.
 
 def DoubleCross(s, R):
-
+       
     D2 = dict()
     CH = s.split('/2/')
     CH.sort(key=lambda x: x.count('/'))
-    SubR = R/len(CH)
+    
+    # count can be either 3 or 4
+    SlashCount = s.count('/')
+    if SlashCount==4:
+        SubR = R/len(CH)
     
     for s2 in CH:
-        D1 = Simp_Doub(s2,SubR)
-        D2 = MergeDD(D1,D2)
+        
+        try:
+            SubR
+        except:
+            SubR=R-sum(D2.values())
+            
+        if s2.count('/')==0:
+            n = len(s2)/3
+            Rec_Cont =  ((2**n)-1) / (2**n)
+            CH_R = SubR * Rec_Cont
+            D1 = dict()
+            D1[s2[:3]] = CH_R
+            D2 = MergeDD(D1,D2)
+        elif s2.count('/')==1: 
+            D1 = SimpleCross(s2, SubR)
+            D2 = MergeDD(D1,D2)
+        else:
+            print('Error! \n Neither single nor simple cross.')
+            break  
+        SubR=R-sum(D2.values())
         
     return(D2)
+
+# # Examples:
+# s = 'P01/P02/2/P03'
+# s = 'P06/P07P07/2/P08P08P08'
+# DoubleCross(s, R=1)
 
 
 
@@ -210,14 +224,20 @@ def PreProcess(pedigree):
 
 # ### Ancestral Contributions (`AnCon`)
 
-def AnCon(pedigree, R=1, SimplifyPed=True):
+def AnCon(pedigree, R=1, SimplifyPed=True, ShowPedigree=True):
+    
+    R_updated = R
     
     # Preprocessing
     s, D_values, D_key, D_parents = PreProcess(pedigree)
     Transformed_s = s
     
     # Get number of crosses (after second crosses)
-    List_CrossesASC = [x for x in s.split("/") if x.isdigit()]    
+    List_CrossesASC = [x for x in s.split("/") if x.isdigit()]
+    
+    if len(List_CrossesASC)==0 and s.count('/')==0:
+        D_values[Transformed_s] = R_updated
+        s = ''
     
     while len(s) > 0:
 
@@ -244,59 +264,84 @@ def AnCon(pedigree, R=1, SimplifyPed=True):
         else:
             s = s
         
-        # Check for single or no cross
-        if SlashCount < 2:
-            D1 = Simp_Doub(CH,R)
-            # Parent Ratio
-            PR = sum(D1.values())
-            if PR>1:
-                # Contribution
-                C = R * (PR/(PR+1))
-                D1 = D1.update((x, C) for x, y in D1.items())
-            else:
-                R = R - PR
-                
+        # No cross
+        if SlashCount == 0:
+            n = len(CH)/3
+            Rec_Cont =  ((2**n)-1) / (2**n)
+            CH_R = R_updated * Rec_Cont
+            D1 = dict()
+            D1[CH[:3]] = CH_R
             D_values = MergeDD(D1,D_values)
             List_CrossesASC.remove(MAX)
+            R_updated = R - sum(D_values.values())
             
-            try : 
+            try: 
+                s = Fem_Male[1]
+            except:
+                break
+    
+        # Simple cross        
+        elif SlashCount == 1:
+            CH_R = (R_updated/len(Fem_Male))
+            D1 = SimpleCross(CH, CH_R)
+            D_values = MergeDD(D1,D_values)
+            List_CrossesASC.remove(MAX)
+            R_updated = R - sum(D_values.values())
+            
+            try: 
                 s = Fem_Male[1]
             except:
                 break
             
         # Check for double cross 
-        elif SlashCount == 3:
-            D1 = DoubleCross(CH,R)
-            PR = sum(D1.values())
+        elif SlashCount==3 or SlashCount==4:
+            D1 = DoubleCross(CH,R_updated/len(Fem_Male))
             D_values = MergeDD(D1,D_values)
-            R = R - PR
+            R_updated = R - sum(D_values.values())
             List_CrossesASC.remove(MAX)
             try : 
                 s = Fem_Male[1]
             except:
-                break
-            
-        # Break otherwise    
+                break    
         else:
-            break  
-    # If there is no other parent, add D1 again
-    if len(s)==0 and R!=0:
-        D_values = MergeDD(D1,D_values)
-    
-    print('Sum of contributions = ', sum(D_values.values()))
-    
-    # Return original names if required        
+            print("Not currently available for higher number of repeated crosses")
+            break
+             
+                
     if SimplifyPed == True:
-        print(Transformed_s)
-        return(D_values)
+        OUTPUT = D_values
+        if ShowPedigree == True:
+            print(Transformed_s)
+        
     else:
         for key, value in D_key.items():
             D_parents[key] = D_values[value]
-        print(pedigree)
-        return(D_parents)
+        OUTPUT = D_parents
+        if ShowPedigree == True:
+            print(pedigree)
+    
+    return(OUTPUT)
 
-# pedigree = 'A/*3B'    
+
+
+# # Exmaples:
+    
+# pedigree = 'A/*3B//C'    
 # AnCon(pedigree, R=1, SimplifyPed=True)
+
+# pedigree = 'II53.388/ANDES//YAKTANA 54/NORIN 10 BREVOR/3/LERMA ROJO/4/B4946.A.4.18.2.1Y/YAQUI 53//3*YAQUI 50'
+# pedigree = 'P01/P02/2/P03/P04'
+# pedigree='A/5/2*B/C5//D/3/E//F5*3/G/4/H'
+# pedigree = 'AGATHA/3*YECORA_F_70'
+# pedigree = 'A/B*4//3*C/3/D/C/4/F*3'
+# pedigree = 'A/5/B/C//D/3/E//F/G/4/H'
+# pedigree = 'A/5/B/C//D/3/F/G/4/H'
+# pedigree = 'A/B/2/C/3/D/4/E/F/2/G/H'
+# pedigree = 'A'
+# pedigree = 'PENJAMO T 62/GABO 55'
+# Dtest = AnCon(pedigree, R=1, SimplifyPed=False)
+# Dtest
+# sum(Dtest.values())
 
 
 
@@ -316,10 +361,10 @@ def PedigreeVis(DD, Log = False):
     labels = list(DD.keys())
     
     if Log == True:
+        DD.update((x, y+1) for x, y in DD.items())
         sizes = np.log10(list(DD.values()))
         Min = abs(min(sizes))
         sizes = [s+Min for s in sizes]
-#         sizes
     else:
         sizes = list(DD.values())
     
@@ -341,5 +386,117 @@ def PedigreeVis(DD, Log = False):
     # show plot
     plt.show()
 
+# pedigree = P['Pedigree'][8]
+# pedigree = 'A/B/2/C/3/D*2/4/E/F/2/G/H*5'
+# DD = AnCon(pedigree, R=1, SimplifyPed=False)
+# PedigreeVis(DD, Log = True)
 
 
+
+
+# ### Obtain Unique Parents  (`UniqueParents`)
+# This creates a list with unique parents in pedigrees. 
+# It requires a dataframe with Pedigree and GID as columns
+
+def UniqueParents(df):
+    
+    # Expand all parents
+    Mdf = df.copy()
+    Mdf["Pedigree"] = Mdf["Pedigree"].apply(lambda x: removeBC(str(x)))
+    Mdf = Mdf["Pedigree"].str.split('/', expand = True)
+    Mdf = Mdf.fillna(value=np.nan)
+    
+    # Get all potential parents
+    Parents = []
+    # Iterate over the index range from
+    # 0 to max number of columns in dataframe
+    for Col in range(Mdf.shape[1]):
+        # Select column by index position using iloc[]
+        L = list(Mdf.iloc[:,Col])
+        Parents.extend(L)
+        
+    # Count occurrences
+    D = Counter(Parents)
+    # D.most_common()
+    D.pop(np.nan)
+    
+    # create list with elements to remove
+    L2R = ['','2','3','4','5','6','7','8','9','10',
+           '11','12','13','14']
+
+    # collection is not exactly a dict type. That's why dict(D)
+    for key in dict(D).keys():
+        if key in L2R:
+            D.pop(key)
+    
+    Dkeys = list(D.keys())
+    UP = list(np.unique(Dkeys))
+    
+    # Return a list of unique parents (UP)
+    return(UP)
+
+# UP = UniqueParents(df=P)
+
+
+
+# ### Get ancestral contribution for all GID in dataframe  (`df_AnCon`)
+# This creates a df with GID as rows and unique parents as columns. 
+# It requires a dataframe with Pedigree and GID as columns.
+
+def df_AnCon(df):
+    
+    P2 = df.copy()
+    P2 = P2.reset_index()
+    Max = max(P2['index']) + 1 
+    
+    # Get colnames
+    UP = UniqueParents(df)
+    
+    # Create empty df with UP
+    df_all = pd.DataFrame(columns=UP)
+    
+    for i in range(Max):
+        # Get ancestral contribution for current row
+        D = AnCon(P2['Pedigree'][i], R=1, SimplifyPed=False, ShowPedigree=False)
+        # Add data to dictionary using GID as index
+        df_D = pd.DataFrame(D, index=[P2['GID'][i],])
+        # Update df and fill na with 0
+        df_all = pd.concat([df_all, df_D])
+        df_all = df_all.fillna(0)
+
+    
+    return(df_all)
+
+
+# df1 = df_AnCon(df=P)
+# # Verify that sum of contributions is exactly 1
+# df1['SUM'] = df1.sum(axis=1)
+# df1.loc[df1['SUM'] != 1]
+
+
+
+
+# ### Plot Relationships between GIDs/Parents (`PlotRelationship`)
+# `Log = False` plots the original contributions. \
+# `Log = True` plots the Log10 contributions. This is useful to visualize which parents have been used more often in the current pedigree.
+
+def PlotRelationship(df, Cov=False, PlotSize=(12,8), LW=0.2, LabSize=6):
+        
+    if Cov==True:
+        df = df.T.cov()
+    else:
+        df = df
+    
+    # sns.set(font_scale=0.2)
+    fig, ax = plt.subplots(figsize=PlotSize)
+    ax = sns.heatmap(df, linewidths=LW, 
+                     xticklabels=True, yticklabels=True,
+                    cmap='YlOrBr')
+    ax.xaxis.tick_top() # x axis on top
+    ax.xaxis.set_label_position('top')
+    plt.tick_params(labelsize=LabSize)
+    plt.xticks(rotation=90)
+    plt.show()
+    
+    
+    
