@@ -243,7 +243,7 @@ def AnCon(pedigree, R=1, SimplifyPed=True, ShowPedigree=True):
 
         # Get max cross number, and the previous cross
         if len(List_CrossesASC) > 0:
-            MAX = max(List_CrossesASC)
+            MAX = str(max([int(i) for i in List_CrossesASC]))
             NextCross = "/" + str(int(MAX)-1) + "/"
             MaxCross = "/" + MAX + "/"
         else:
@@ -338,7 +338,10 @@ def AnCon(pedigree, R=1, SimplifyPed=True, ShowPedigree=True):
 # pedigree = 'A/5/B/C//D/3/F/G/4/H'
 # pedigree = 'A/B/2/C/3/D/4/E/F/2/G/H'
 # pedigree = 'A'
-# pedigree = 'PENJAMO T 62/GABO 55'
+# pedigree = '4777*2//FKN/GABO 54/3/VEERY #5/4/BUCKBUCK/PAVON F 76'
+# pedigree = 'TJB368.251/BUCKBUCK//OCORONI F 86'
+# pedigree = 'BABAX/9/KENTANA/BAGE//FRONTANA/URQUIZA O GRAL. URQUIZA/3/BONZA/4/TORIM F 73/5/ALDAN/6/SERI M 82/7/VEERY #10/8/OPATA M 85/10/BABAX'
+
 # Dtest = AnCon(pedigree, R=1, SimplifyPed=False)
 # Dtest
 # sum(Dtest.values())
@@ -456,10 +459,20 @@ def df_AnCon(df):
     df_all = pd.DataFrame(columns=UP)
     
     for i in range(Max):
+        # print(i)  
+        
+        Pedigree = P2['Pedigree'][i]
+        Index = P2['GID'][i]
+        
+        if pd.isna(Pedigree)==True:
+            df_D = pd.DataFrame(index=[Index,])
+            df_all = pd.concat([df_all, df_D])
+            continue
+            
         # Get ancestral contribution for current row
-        D = AnCon(P2['Pedigree'][i], R=1, SimplifyPed=False, ShowPedigree=False)
+        D = AnCon(Pedigree, R=1, SimplifyPed=False, ShowPedigree=False)
         # Add data to dictionary using GID as index
-        df_D = pd.DataFrame(D, index=[P2['GID'][i],])
+        df_D = pd.DataFrame(D, index=[Index,])
         # Update df and fill na with 0
         df_all = pd.concat([df_all, df_D])
         df_all = df_all.fillna(0)
